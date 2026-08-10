@@ -32,7 +32,6 @@ Swap `MyNewApp` / `--private` as you like.
 1. Instantiate law/wiki (see `Constitution/BOOTSTRAP.md`):
    - `AGENTS.md` ← from `Constitution/AGENTS.md`
    - `docs/` ← from `Constitution/docs/`
-   - Optional thin `CLAUDE.md` → `AGENTS.md`
 2. Keep `.cursor/wiki-root` as `docs` (already set for greenfield).
 3. Open the project in Cursor; use:
    - `/brainstorming` → spec  

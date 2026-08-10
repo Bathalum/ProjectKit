@@ -10,7 +10,6 @@ Use this when copying the **template** into a new GitHub repo / workspace. Skill
   skills/            # brainstorming, writing-plans, TDD, sync-docs, _paths.md
 AGENTS.md            # from Constitution/AGENTS.md (live law)
 docs/                # from Constitution/docs/ (wiki stubs)
-CLAUDE.md            # optional thin pointer → AGENTS.md
 Constitution/        # optional: keep as pristine template, or omit if AGENTS+docs already instantiated
 ```
 
@@ -30,7 +29,7 @@ If the living wiki is not at repo-root `docs/` (e.g. app package owns the wiki):
 .cursor/wiki-root    →  packages/app/docs   (example)
 ```
 
-Place `AGENTS.md` as sibling of that docs tree when possible (`packages/app/AGENTS.md`). Root `CLAUDE.md` may thin-point at it.
+Place `AGENTS.md` as sibling of that docs tree when possible (`packages/app/AGENTS.md`).
 
 ## Do not
 

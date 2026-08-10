@@ -206,4 +206,4 @@ Operational checklist for every session. Follow in order unless the active plan 
 
 ### Tool bridge
 
-Keep this file as SSOT. If a tool requires a native file (e.g. `CLAUDE.md`), make that file a thin pointer/import to this constitution — **do not fork the law**.
+Keep this file as SSOT. If a tool requires its own native instructions file, make that file a thin pointer/import to this constitution — **do not fork the law**.
