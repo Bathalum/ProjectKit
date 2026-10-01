@@ -37,14 +37,14 @@ The server watches a directory for HTML files and serves the newest one to the b
 scripts/start-server.sh --project-dir /path/to/project
 
 # Returns: {"type":"server-started","port":52341,"url":"http://localhost:52341",
-#           "screen_dir":"/path/to/project/.cursor/brainstorm/12345-1706000000"}
+#           "screen_dir":"/path/to/project/.claude/brainstorm/12345-1706000000"}
 ```
 
 Save `screen_dir` from the response. Tell user to open the URL.
 
-**Finding connection info:** The server writes its startup JSON to `$SCREEN_DIR/.server-info`. If you launched the server in the background and didn't capture stdout, read that file to get the URL and port. When using `--project-dir`, check `<project>/.cursor/brainstorm/` for the session directory.
+**Finding connection info:** The server writes its startup JSON to `$SCREEN_DIR/.server-info`. If you launched the server in the background and didn't capture stdout, read that file to get the URL and port. When using `--project-dir`, check `<project>/<tool-dir>/brainstorm/` for the session directory (`<tool-dir>` = `.claude` or `.cursor`, whichever holds the skills).
 
-**Note:** Pass the project root as `--project-dir` so mockups persist in `.cursor/brainstorm/` and survive server restarts. Without it, files go to `/tmp` and get cleaned up. Remind the user to add `.cursor/brainstorm/` to `.gitignore` if it's not already there (do not ignore the whole `.cursor/skills/` tree).
+**Note:** Pass the project root as `--project-dir` so mockups persist in `<tool-dir>/brainstorm/` and survive server restarts. Without it, files go to `/tmp` and get cleaned up. Remind the user to add `<tool-dir>/brainstorm/` to `.gitignore` if it's not already there (do not ignore the whole `<tool-dir>/skills/` tree).
 
 **Launching the server by platform:**
 
@@ -278,7 +278,7 @@ If `.events` doesn't exist, the user didn't interact with the browser — use on
 scripts/stop-server.sh $SCREEN_DIR
 ```
 
-If the session used `--project-dir`, mockup files persist in `.cursor/brainstorm/` for later reference. Only `/tmp` sessions get deleted on stop.
+If the session used `--project-dir`, mockup files persist in `<tool-dir>/brainstorm/` for later reference. Only `/tmp` sessions get deleted on stop.
 
 ## Reference
 

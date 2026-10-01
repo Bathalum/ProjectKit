@@ -6,7 +6,8 @@
 # Each session gets its own directory to avoid conflicts.
 #
 # Options:
-#   --project-dir <path>  Store session files under <path>/.cursor/brainstorm/
+#   --project-dir <path>  Store session files under <path>/<tool-dir>/brainstorm/
+#                         (<tool-dir> = .claude or .cursor, whichever holds the skills)
 #                         instead of /tmp. Files persist after server stops.
 #   --host <bind-host>    Host/interface to bind (default: 127.0.0.1).
 #                         Use 0.0.0.0 in remote/containerized environments.
@@ -74,11 +75,22 @@ if [[ "$FOREGROUND" != "true" && "$FORCE_BACKGROUND" != "true" ]]; then
   fi
 fi
 
+# Tool folder for persistent sessions: the one this skill is installed under
+# (<tool-dir>/skills/brainstorming/scripts), else whichever the project has.
+TOOL_DIR="$(basename "$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")")"
+if [[ "$TOOL_DIR" != ".claude" && "$TOOL_DIR" != ".cursor" ]]; then
+  if [[ -n "$PROJECT_DIR" && -d "$PROJECT_DIR/.claude" && ! -d "$PROJECT_DIR/.cursor" ]]; then
+    TOOL_DIR=".claude"
+  else
+    TOOL_DIR=".cursor"
+  fi
+fi
+
 # Generate unique session directory
 SESSION_ID="$$-$(date +%s)"
 
 if [[ -n "$PROJECT_DIR" ]]; then
-  SCREEN_DIR="${PROJECT_DIR}/.cursor/brainstorm/${SESSION_ID}"
+  SCREEN_DIR="${PROJECT_DIR}/${TOOL_DIR}/brainstorm/${SESSION_ID}"
 else
   SCREEN_DIR="/tmp/brainstorm-${SESSION_ID}"
 fi
