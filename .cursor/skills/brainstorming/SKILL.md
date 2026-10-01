@@ -66,7 +66,7 @@ Still required: restate design → write spec under `{WIKI_ROOT}/specs/` → rev
 
 ### Which skill file to follow
 
-**Prefer this project skill** (`.cursor/skills/brainstorming/`) when present.  
+**Prefer this project skill** (`.cursor/skills/brainstorming/` or `.claude/skills/brainstorming/`) when present.  
 Do **not** follow personal/old copies with hardcoded product paths unless the user explicitly names them.
 
 ### Resume from prior chat

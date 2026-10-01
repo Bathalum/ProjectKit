@@ -1,14 +1,36 @@
 # Agent Engineering Project Kit
 
-Portable **Cursor skills** + **Constitution** for repeatable agent-driven builds.
+Portable **agent skills** + **Constitution** for repeatable agent-driven builds — for **Claude Code**, **Cursor**, or both.
 
-This repo is a **GitHub template**. Skills are **project-local** under `.cursor/skills/` — not installed globally.
+This repo is a **GitHub template**. Skills are **project-local** (`.claude/skills/` or `.cursor/skills/`) — not installed globally.
 
 **Template:** https://github.com/Bathalum/ProjectKit
 
 ## One command (any folder — new or existing project)
 
-Run from the project root. No clone of ProjectKit needed:
+Run from the project root. No clone of ProjectKit needed. Pick the tool the project uses:
+
+**Claude Code**
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1))) claude
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash -s -- claude
+```
+
+**Cursor**
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1))) cursor
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash -s -- cursor
+```
+
+**Both** (default when no tool is given — Cursor owns the skills, Claude Code links to them)
 
 ```powershell
 irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1 | iex
@@ -18,24 +40,25 @@ irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap
 curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash
 ```
 
-Idempotent — safe to re-run any time to pull skill updates or repair links:
+What each mode writes:
 
-| Item | Behaviour |
-|---|---|
-| `.cursor/skills/` | **Refreshed** from the kit (kit-owned; extra project skills kept) |
-| `.cursor/wiki-root` | Created if missing (`docs`) |
-| `AGENTS.md` | Created if missing — never overwritten |
-| `docs/` wiki | Missing stubs added — existing pages never overwritten |
-| `CLAUDE.md` | Created if missing — thin pointer (`@AGENTS.md`) |
-| `.claude/skills` | Linked → `.cursor/skills` (symlink, or junction on Windows without Developer Mode) |
-| `.gitignore` | Adds `.claude/skills` — the link is per-machine (git on Windows checks symlinks out as text files) |
+| Item | `claude` | `cursor` | `both` |
+|---|---|---|---|
+| Skills (refreshed from kit; extra project skills kept) | `.claude/skills/` | `.cursor/skills/` | `.cursor/skills/` (SSOT) |
+| `.cursor/wiki-root` (`docs`) | — | if missing | if missing |
+| `AGENTS.md` | if missing | if missing (Cursor reads it natively) | if missing |
+| `docs/` wiki stubs | missing ones only | missing ones only | missing ones only |
+| `CLAUDE.md` thin pointer (`@AGENTS.md`) | if missing | — | if missing |
+| `.claude/skills` link → `.cursor/skills` | — | — | symlink / junction, git-ignored |
+
+Idempotent — re-run any time to pull skill updates or repair what is missing. It never overwrites `AGENTS.md`, wiki pages, or `CLAUDE.md`, and never deletes the other tool's files (it prints a note instead). Switching `both` → `claude` turns the link into a real folder and drops the `.gitignore` entry.
 
 ## For AI agents (Claude Code, Cursor, Codex, …)
 
-Asked to "set up ProjectKit", "use the kit", or "bootstrap this repo"? **Run the one command above** from the project root (PowerShell on Windows, bash elsewhere). Do not hand-copy files. Then:
+Asked to "set up ProjectKit", "use the kit", or "bootstrap this repo"? **Run the one command for your own tool** from the project root (PowerShell on Windows, bash elsewhere) — Claude Code → `claude`, Cursor → `cursor`, unsure or mixed team → no argument (`both`). Do not hand-copy files. Then:
 
 - Read `AGENTS.md` (the law) and fill `docs/ARCHITECT-BRIEFING.md` + `docs/ARCHITECTURE.md` for the product.
-- `.claude/skills` missing after a fresh clone? Re-run the same command — it only repairs what is missing.
+- Skills missing after a fresh clone (e.g. the `both` link)? Re-run the same command — it only repairs what is missing.
 - Never edit `Constitution/` as the live wiki; it is the pristine template.
 
 ## Use this template (new project)
@@ -62,8 +85,8 @@ Swap `MyNewApp` / `--private` as you like.
 ### After creating the repo
 
 1. Instantiate law/wiki + tool bridges with the local script (see `Constitution/BOOTSTRAP.md`):
-   - Windows: `powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1`
-   - macOS/Linux: `bash scripts/bootstrap.sh`
+   - Windows: `powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1 [claude|cursor|both]`
+   - macOS/Linux: `bash scripts/bootstrap.sh [claude|cursor|both]`
 2. Keep `.cursor/wiki-root` as `docs` (already set for greenfield).
 3. Open the project in Cursor or Claude Code; use:
    - `/brainstorming` → spec  
@@ -81,7 +104,7 @@ You can keep pushing lessons and skill improvements to **this** repo (`Bathalum/
 ProjectKit/
 ├── .cursor/
 │   ├── wiki-root          # default: docs
-│   └── skills/            # brainstorming, writing-plans, TDD, sync-docs (SSOT)
+│   └── skills/            # brainstorming, writing-plans, TDD, sync-docs (kit source for every mode)
 ├── scripts/
 │   ├── bootstrap.ps1      # one-command setup (Windows PowerShell)
 │   └── bootstrap.sh       # one-command setup (bash / Git Bash)

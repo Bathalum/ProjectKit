@@ -2,20 +2,50 @@
 # ProjectKit bootstrap -- instantiate or refresh the kit in a project directory.
 #
 # One command, from the project root (no clone of ProjectKit needed):
-#   curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash
+#   Claude Code: curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash -s -- claude
+#   Cursor:      curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash -s -- cursor
+#   Both:        curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash
 #
 # Or from a local kit / a repo created from the template:
-#   bash scripts/bootstrap.sh [target-dir]
+#   bash scripts/bootstrap.sh [claude|cursor|both] [target-dir]
+#
+# Tools:
+#   claude  .claude/skills/ (real folder) + CLAUDE.md -> AGENTS.md
+#   cursor  .cursor/skills/ + .cursor/wiki-root (Cursor reads AGENTS.md natively)
+#   both    .cursor/skills/ (SSOT) + CLAUDE.md + .claude/skills link (git-ignored)   [default]
 #
 # Idempotent. Kit-owned skills are refreshed; AGENTS.md, the wiki and CLAUDE.md
 # are created only when missing -- never overwritten.
 set -euo pipefail
 
 REPO_URL="https://github.com/Bathalum/ProjectKit.git"
-ONE_LINER_PS='irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1 | iex'
-ONE_LINER_SH='curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash'
+RAW_PS="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1"
+RAW_SH="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh"
+IGNORE_COMMENT="# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)"
+IGNORE_ENTRY=".claude/skills"
 
+TOOL="both"
+case "${1:-}" in claude|cursor|both) TOOL="$1"; shift ;; esac
 TARGET="$(cd "${1:-.}" && pwd)"
+
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; *) WIN=0 ;; esac
+
+one_liners() {
+  if [ "$1" = both ]; then
+    printf -- '- PowerShell: `irm %s | iex`\n- bash: `curl -fsSL %s | bash`\n' "$RAW_PS" "$RAW_SH"
+  else
+    printf -- '- PowerShell: `& ([scriptblock]::Create((irm %s))) %s`\n- bash: `curl -fsSL %s | bash -s -- %s`\n' "$RAW_PS" "$1" "$RAW_SH" "$1"
+  fi
+}
+
+# Remove a directory link (symlink or junction) without touching its target.
+remove_dir_link() {
+  if [ "$WIN" = 1 ]; then
+    MSYS2_ARG_CONV_EXCL='*' cmd /c rmdir "$(cygpath -w "$TARGET/$1")" >/dev/null
+  else
+    rm "$1"
+  fi
+}
 
 # Kit source: the kit this script lives in, else a fresh shallow clone.
 SRC=""
@@ -31,22 +61,30 @@ if [ -z "$SRC" ]; then
 fi
 
 cd "$TARGET"
-echo "ProjectKit -> $TARGET"
+echo "ProjectKit ($TOOL) -> $TARGET"
 
 # 1. Skills: kit owns them -- refresh (extra project-local skills are kept).
-if [ "$SRC" != "$TARGET" ]; then
-  mkdir -p .cursor/skills
-  cp -R "$SRC/.cursor/skills/." .cursor/skills/
-  [ -e .cursor/wiki-root ] || cp "$SRC/.cursor/wiki-root" .cursor/wiki-root
-  echo "  skills      refreshed (.cursor/skills)"
+if [ "$TOOL" = claude ]; then SKILLS=".claude/skills"; else SKILLS=".cursor/skills"; fi
+if [ "$TOOL" = claude ] && [ -L .claude/skills ]; then
+  remove_dir_link .claude/skills
+  echo "  link        removed (.claude/skills is now a real folder)"
+fi
+if [ "$SRC/.cursor/skills" != "$TARGET/$SKILLS" ]; then
+  mkdir -p "$SKILLS"
+  cp -R "$SRC/.cursor/skills/." "$SKILLS/"
+  echo "  skills      refreshed ($SKILLS)"
+fi
+if [ "$TOOL" != claude ] && [ ! -e .cursor/wiki-root ]; then
+  cp "$SRC/.cursor/wiki-root" .cursor/wiki-root
 fi
 
 # 2. Law + wiki: project owns them -- add only what is missing.
 WIKI_ROOT="docs"
-if [ -f .cursor/wiki-root ]; then
-  line="$(grep -v '^[[:space:]]*#' .cursor/wiki-root | grep -v '^[[:space:]]*$' | head -n1 | tr -d '\r' | xargs || true)"
-  [ -n "$line" ] && WIKI_ROOT="${line%/}"
-fi
+for f in .cursor/wiki-root .claude/wiki-root; do
+  [ -f "$f" ] || continue
+  line="$(grep -v '^[[:space:]]*#' "$f" | grep -v '^[[:space:]]*$' | head -n1 | tr -d '\r' | xargs || true)"
+  if [ -n "$line" ]; then WIKI_ROOT="${line%/}"; break; fi
+done
 WIKI_PARENT="$(dirname "$WIKI_ROOT")"
 if [ "$WIKI_PARENT" = "." ]; then AGENTS_REL="AGENTS.md"; else AGENTS_REL="$WIKI_PARENT/AGENTS.md"; fi
 if [ ! -e "$AGENTS_REL" ]; then
@@ -58,52 +96,60 @@ cp -Rn "$SRC/Constitution/docs/." "$WIKI_ROOT/" 2>/dev/null || true
 echo "  wiki        missing stubs added ($WIKI_ROOT/)"
 
 # 3. Claude Code bridge: CLAUDE.md thin pointer (AGENTS.md "Tool bridge").
-if [ ! -e CLAUDE.md ]; then
-  cat > CLAUDE.md <<EOF
-# CLAUDE.md
-
-Thin pointer -- the law lives in [\`$AGENTS_REL\`](./$AGENTS_REL) (SSOT). Do not fork rules here.
-
-@$AGENTS_REL
-
-## Skills
-
-Kit skills live in \`.cursor/skills/\` (SSOT). \`.claude/skills\` is a local link to it and is git-ignored.
-If \`.claude/skills\` is missing (fresh clone), run from the repo root:
-
-- PowerShell: \`$ONE_LINER_PS\`
-- bash: \`$ONE_LINER_SH\`
-EOF
+if [ "$TOOL" != cursor ] && [ ! -e CLAUDE.md ]; then
+  if [ "$TOOL" = claude ]; then
+    note='Kit skills live in `.claude/skills/` (from ProjectKit). To refresh them or repair a missing piece, run from the repo root:'
+  else
+    note='Kit skills live in `.cursor/skills/` (SSOT). `.claude/skills` is a local link to it and is git-ignored.
+If `.claude/skills` is missing (fresh clone), run from the repo root:'
+  fi
+  {
+    printf '# CLAUDE.md\n\nThin pointer -- the law lives in [`%s`](./%s) (SSOT). Do not fork rules here.\n\n@%s\n\n## Skills\n\n%s\n\n' \
+      "$AGENTS_REL" "$AGENTS_REL" "$AGENTS_REL" "$note"
+    one_liners "$TOOL"
+  } > CLAUDE.md
   echo "  claude      created (CLAUDE.md -> AGENTS.md)"
 fi
 
-# 4. Claude Code bridge: .claude/skills -> .cursor/skills (link, not a copy).
-if [ -L .claude/skills ]; then
-  echo "  link        ok (.claude/skills)"
-elif [ -e .claude/skills ]; then
-  echo "  WARNING: .claude/skills is a real folder -- left alone. Move its skills into .cursor/skills and re-run." >&2
-else
-  mkdir -p .claude
-  case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*)
+# 4. both: .claude/skills -> .cursor/skills (link, not a copy), git-ignored.
+if [ "$TOOL" = both ]; then
+  if [ -L .claude/skills ]; then
+    echo "  link        ok (.claude/skills)"
+  elif [ -e .claude/skills ]; then
+    echo "  WARNING: .claude/skills is a real folder -- left alone. Move its skills into .cursor/skills and re-run." >&2
+  else
+    mkdir -p .claude
+    if [ "$WIN" = 1 ]; then
       # Git Bash 'ln -s' silently copies; use native links. Junction needs no admin.
       wlink="$(cygpath -w "$TARGET/.claude/skills")"
       wtarget="$(cygpath -w "$TARGET/.cursor/skills")"
       MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /D "$wlink" '..\.cursor\skills' >/dev/null 2>&1 \
         || MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /J "$wlink" "$wtarget" >/dev/null
-      ;;
-    *)
+    else
       ln -s ../.cursor/skills .claude/skills
-      ;;
-  esac
-  echo "  link        created (.claude/skills -> .cursor/skills)"
+    fi
+    echo "  link        created (.claude/skills -> .cursor/skills)"
+  fi
+
+  # git on Windows checks symlinks out as text files -- keep the link per-machine.
+  if ! { [ -f .gitignore ] && grep -qxF "$IGNORE_ENTRY" .gitignore; }; then
+    if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
+    printf '%s\n%s\n' "$IGNORE_COMMENT" "$IGNORE_ENTRY" >> .gitignore
+    echo "  gitignore   added .claude/skills"
+  fi
+elif [ "$TOOL" = claude ] && [ -f .gitignore ] && grep -qxF "$IGNORE_ENTRY" .gitignore; then
+  # Real skills folder now -- it must not stay git-ignored.
+  grep -vxF -e "$IGNORE_ENTRY" -e "$IGNORE_COMMENT" .gitignore > .gitignore.tmp || true
+  if [ -s .gitignore.tmp ]; then mv .gitignore.tmp .gitignore; else rm -f .gitignore.tmp .gitignore; fi
+  echo "  gitignore   removed .claude/skills"
 fi
 
-# 5. Keep the link out of git (git on Windows checks symlinks out as text files).
-if ! { [ -f .gitignore ] && grep -qxF '.claude/skills' .gitignore; }; then
-  if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
-  printf '# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)\n.claude/skills\n' >> .gitignore
-  echo "  gitignore   added .claude/skills"
+# 5. Leftovers from the other tool are reported, never deleted.
+if [ "$TOOL" = claude ] && [ -e .cursor ]; then
+  echo "  note        .cursor/ exists -- delete it if this project does not use Cursor"
+fi
+if [ "$TOOL" = cursor ] && { [ -e CLAUDE.md ] || [ -e .claude/skills ]; }; then
+  echo "  note        CLAUDE.md / .claude/skills exist -- delete them if this project does not use Claude Code"
 fi
 
 echo "Done."

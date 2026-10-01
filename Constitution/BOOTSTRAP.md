@@ -1,49 +1,55 @@
 # Bootstrap — new project from this constitution kit
 
-Use this when copying the **template** into a new GitHub repo / workspace. Skills stay **project-local** under `.cursor/skills/` — not global.
+Use this when copying the **template** into a new GitHub repo / workspace. Skills stay **project-local** (`.claude/skills/` or `.cursor/skills/`) — not global.
 
 ## Fastest path — one command
 
-From the project root (new or existing project; idempotent):
+From the project root (new or existing project; idempotent). Tool = `claude`, `cursor`, or omit for `both`:
 
 ```powershell
-irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1 | iex
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1))) claude
 ```
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh | bash -s -- claude
 ```
 
-In a repo created from the template, run the local copy instead (`scripts/bootstrap.ps1` / `scripts/bootstrap.sh`).
+In a repo created from the template, run the local copy instead (`scripts/bootstrap.ps1 <tool>` / `scripts/bootstrap.sh <tool>`).
 The script does everything below; the manual steps remain the reference.
 
 ## What to copy from the template
 
+Common to every tool:
+
 ```
-.cursor/
-  wiki-root          # usually one line: docs
-  skills/            # brainstorming, writing-plans, TDD, sync-docs, _paths.md
 AGENTS.md            # from Constitution/AGENTS.md (live law)
 docs/                # from Constitution/docs/ (wiki stubs)
-CLAUDE.md            # tool bridge: thin pointer → AGENTS.md (@AGENTS.md)
-.claude/skills       # tool bridge: link → .cursor/skills (git-ignored, per machine)
 Constitution/        # optional: keep as pristine template, or omit if AGENTS+docs already instantiated
 ```
 
+Per tool:
+
+| Tool | Skills | Extra |
+|---|---|---|
+| `claude` | `.claude/skills/` ← kit `.cursor/skills/` | `CLAUDE.md` thin pointer (`@AGENTS.md`) |
+| `cursor` | `.cursor/skills/` | `.cursor/wiki-root` (`docs`) — Cursor reads `AGENTS.md` natively |
+| `both` | `.cursor/skills/` (SSOT) | `.cursor/wiki-root`, `CLAUDE.md`, `.claude/skills` link → `.cursor/skills` (git-ignored) |
+
 ## Steps
 
-1. Create empty repo; copy the kit above.
-2. Set `.cursor/wiki-root` to `docs` (greenfield default).
+1. Create empty repo; copy the kit above for your tool.
+2. Wiki root defaults to `docs` (`.cursor/wiki-root` or `.claude/wiki-root` only needed to override).
 3. Fill `docs/ARCHITECT-BRIEFING.md` and `docs/ARCHITECTURE.md` stubs for the new product.
-4. Open the project in Cursor or Claude Code — skills load from **this repo’s** `.cursor/skills/` (Claude Code via the `.claude/skills` link).
+4. Open the project in Claude Code or Cursor — skills load from **this repo's** skills folder.
 5. Workflow: `/brainstorming` → spec → `/writing-plans` → implement with TDD → `/sync-docs` to maintain the wiki.
 
-## Tool bridges (Claude Code)
+## Tool bridges
 
 Per `AGENTS.md` "Tool bridge": tool-native files point at the SSOT, never fork it.
 
-- `CLAUDE.md` — contains `@AGENTS.md` so Claude Code loads the law every session.
-- `.claude/skills` — directory link to `.cursor/skills` so Claude Code sees the same skills. Symlink where allowed; NTFS junction on Windows without Developer Mode/admin. **Git-ignored**: git on Windows checks committed symlinks out as plain text files, so each clone recreates the link by re-running the bootstrap script.
+- **Cursor** — reads `AGENTS.md` natively; no bridge file.
+- **Claude Code** — `CLAUDE.md` contains `@AGENTS.md` so the law loads every session.
+- **Both** — `.claude/skills` is a directory link to `.cursor/skills` so both tools share one copy. Symlink where allowed; NTFS junction on Windows without Developer Mode/admin. **Git-ignored**: git on Windows checks committed symlinks out as plain text files, so each clone recreates the link by re-running the bootstrap script.
 
 ## Monorepo exception
 

@@ -4,7 +4,7 @@ description: >-
   Maintains the project constitution wiki (hubs, spokes, drill-downs) so it
   matches codebase truth. Use for /sync-docs, wiki maintenance, or full
   architecture-doc reconciliation. Resolves wiki root via _paths.md (default
-  docs/; project override via .cursor/wiki-root). Does not edit Constitution/
+  docs/; project override via .cursor/ or .claude/wiki-root). Does not edit Constitution/
   template, archive, or specs/plans/rca.
 ---
 

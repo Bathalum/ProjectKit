@@ -4,7 +4,7 @@ Use when dispatching a spec document reviewer subagent.
 
 **Purpose:** Verify the spec is complete, consistent, and ready for implementation planning.
 
-**Dispatch after:** Spec is written to `{WIKI_ROOT}/specs/` (resolve via `.cursor/skills/_paths.md`)
+**Dispatch after:** Spec is written to `{WIKI_ROOT}/specs/` (resolve via the skills folder's `_paths.md`)
 
 ```
 Task tool (generalPurpose):

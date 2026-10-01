@@ -1,12 +1,12 @@
 # Wiki & law path resolution (project-local)
 
-Cursor skills in this repo are **path-agnostic**. They must not hardcode a product name (e.g. Spindle). Resolve paths at the start of every skill run.
+Skills in this repo are **path-agnostic** (Cursor or Claude Code). They must not hardcode a product name (e.g. Spindle). Resolve paths at the start of every skill run.
 
 ## Resolve `WIKI_ROOT`
 
 First match wins:
 
-1. **`.cursor/wiki-root`** — file at the project/workspace root (next to `.cursor/skills/`). First non-empty, non-`#` comment line = relative path to the living wiki (e.g. `docs` or `spindle/docs`).
+1. **`.cursor/wiki-root`** or **`.claude/wiki-root`** — file next to the project's skills folder (`.cursor/skills/` or `.claude/skills/`). First non-empty, non-`#` comment line = relative path to the living wiki (e.g. `docs` or `spindle/docs`).
 2. Else if **`docs/ARCHITECTURE.md`** exists → `WIKI_ROOT = docs`
 3. Else if **`AGENTS.md`** exists at repo root and clearly points at a docs tree → use that directory
 4. Else if exactly one `*/docs/ARCHITECTURE.md` exists (e.g. `spindle/docs/ARCHITECTURE.md`) → use that `*/docs`
@@ -32,7 +32,7 @@ First match wins:
 
 ## Project vs global
 
-These skills live under **`.cursor/skills/` in the project** (or a GitHub template you copy). Do **not** install them as `~/.cursor/skills` unless the user explicitly asks — the intended model is a **per-project template**, not a global Cursor install.
+These skills live under **`.cursor/skills/` or `.claude/skills/` in the project** (or a GitHub template you copy). Do **not** install them as `~/.cursor/skills` / `~/.claude/skills` unless the user explicitly asks — the intended model is a **per-project template**, not a global install. Set up / refresh with `scripts/bootstrap` (`claude` | `cursor` | `both`).
 
 ## Template default
 
@@ -40,4 +40,4 @@ Ship `.cursor/wiki-root` with `docs`. Greenfield projects need no change.
 
 ## Monorepo override
 
-If the living wiki lives under a package (not repo-root `docs/`), set `.cursor/wiki-root` to that relative path (example: `packages/app/docs` or `spindle/docs`).
+If the living wiki lives under a package (not repo-root `docs/`), set `.cursor/wiki-root` (or `.claude/wiki-root`) to that relative path (example: `packages/app/docs` or `spindle/docs`).
