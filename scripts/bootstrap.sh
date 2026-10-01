@@ -13,6 +13,7 @@
 #   claude  .claude/skills/ (real folder) + CLAUDE.md -> AGENTS.md
 #   cursor  .cursor/skills/ + .cursor/wiki-root (Cursor reads AGENTS.md natively)
 #   both    .cursor/skills/ (SSOT) + CLAUDE.md + .claude/skills link (git-ignored)   [default]
+#   all     + .gitattributes (*.sh LF, *.ps1 CRLF) so skill scripts run after a Windows checkout
 #
 # Idempotent. Kit-owned skills are refreshed; AGENTS.md, the wiki and CLAUDE.md
 # are created only when missing -- never overwritten.
@@ -23,6 +24,8 @@ RAW_PS="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/boots
 RAW_SH="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh"
 IGNORE_COMMENT="# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)"
 IGNORE_ENTRY=".claude/skills"
+GITATTR_COMMENT="# ProjectKit: keep skill scripts runnable on Windows checkouts"
+GITATTR_LINES=("*.sh text eol=lf" "*.ps1 text eol=crlf")
 
 TOOL="both"
 case "${1:-}" in claude|cursor|both) TOOL="$1"; shift ;; esac
@@ -144,7 +147,18 @@ elif [ "$TOOL" = claude ] && [ -f .gitignore ] && grep -qxF "$IGNORE_ENTRY" .git
   echo "  gitignore   removed .claude/skills"
 fi
 
-# 5. Leftovers from the other tool are reported, never deleted.
+# 5. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
+missing=()
+for l in "${GITATTR_LINES[@]}"; do
+  { [ -f .gitattributes ] && tr -d '\r' < .gitattributes | grep -qxF -- "$l"; } || missing+=("$l")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+  if [ -s .gitattributes ] && [ -n "$(tail -c1 .gitattributes)" ]; then echo >> .gitattributes; fi
+  { echo "$GITATTR_COMMENT"; printf '%s\n' "${missing[@]}"; } >> .gitattributes
+  echo "  gitattrib   added $(IFS=,; echo "${missing[*]}")"
+fi
+
+# 6. Leftovers from the other tool are reported, never deleted.
 if [ "$TOOL" = claude ] && [ -e .cursor ]; then
   echo "  note        .cursor/ exists -- delete it if this project does not use Cursor"
 fi

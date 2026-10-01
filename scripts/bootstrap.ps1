@@ -12,6 +12,7 @@
 #   claude  .claude/skills/ (real folder) + CLAUDE.md -> AGENTS.md
 #   cursor  .cursor/skills/ + .cursor/wiki-root (Cursor reads AGENTS.md natively)
 #   both    .cursor/skills/ (SSOT) + CLAUDE.md + .claude/skills link (git-ignored)   [default]
+#   all     + .gitattributes (*.sh LF, *.ps1 CRLF) so skill scripts run after a Windows checkout
 #
 # Idempotent. Kit-owned skills are refreshed; AGENTS.md, the wiki and CLAUDE.md
 # are created only when missing -- never overwritten.
@@ -22,6 +23,8 @@ $RawPs = 'https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/boo
 $RawSh = 'https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh'
 $IgnoreComment = '# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)'
 $IgnoreEntry = '.claude/skills'
+$GitAttributesComment = '# ProjectKit: keep skill scripts runnable on Windows checkouts'
+$GitAttributes = @('*.sh text eol=lf', '*.ps1 text eol=crlf')
 
 function Copy-Tree([string]$From, [string]$To, [bool]$Overwrite) {
     $From = (Resolve-Path -LiteralPath $From).Path
@@ -181,7 +184,22 @@ try {
         }
     }
 
-    # 5. Leftovers from the other tool are reported, never deleted.
+    # 5. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
+    $ga = Join-Path $Target '.gitattributes'
+    $gaLines = @()
+    if (Test-Path -LiteralPath $ga) { $gaLines = @(Get-Content -LiteralPath $ga) }
+    $missing = @($GitAttributes | Where-Object { $gaLines -notcontains $_ })
+    if ($missing.Count -gt 0) {
+        $prefix = ''
+        if (Test-Path -LiteralPath $ga) {
+            $raw = [IO.File]::ReadAllText($ga)
+            if ($raw.Length -gt 0 -and -not $raw.EndsWith("`n")) { $prefix = "`n" }
+        }
+        [IO.File]::AppendAllText($ga, "$prefix$GitAttributesComment`n" + ($missing -join "`n") + "`n")
+        Write-Host "  gitattrib   added $($missing -join ', ')"
+    }
+
+    # 6. Leftovers from the other tool are reported, never deleted.
     if ($Tool -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $Target '.cursor'))) {
         Write-Host '  note        .cursor/ exists -- delete it if this project does not use Cursor'
     }
