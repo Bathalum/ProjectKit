@@ -35,7 +35,7 @@ Per tool:
 | `cursor` | `.cursor/skills/` | `.cursor/wiki-root` (`docs`) — Cursor reads `AGENTS.md` natively |
 | `both` | `.cursor/skills/` (SSOT) | `.cursor/wiki-root`, `CLAUDE.md`, `.claude/skills` link → `.cursor/skills` (git-ignored) |
 
-Every tool also gets `.gitattributes` lines `*.sh text eol=lf` / `*.ps1 text eol=crlf` (added only if missing) so the skills' shell scripts survive Windows checkouts.
+Every tool also gets `.gitattributes` lines `*.sh text eol=lf` / `*.ps1 text eol=crlf` (added only if missing) so the skills' shell scripts survive Windows checkouts. It also git-ignores the brainstorm visual-companion session folder (`<tool-dir>/brainstorm/`).
 
 ## Steps
 

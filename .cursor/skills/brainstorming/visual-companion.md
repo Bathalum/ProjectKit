@@ -44,7 +44,7 @@ Save `screen_dir` from the response. Tell user to open the URL.
 
 **Finding connection info:** The server writes its startup JSON to `$SCREEN_DIR/.server-info`. If you launched the server in the background and didn't capture stdout, read that file to get the URL and port. When using `--project-dir`, check `<project>/<tool-dir>/brainstorm/` for the session directory (`<tool-dir>` = `.claude` or `.cursor`, whichever holds the skills).
 
-**Note:** Pass the project root as `--project-dir` so mockups persist in `<tool-dir>/brainstorm/` and survive server restarts. Without it, files go to `/tmp` and get cleaned up. Remind the user to add `<tool-dir>/brainstorm/` to `.gitignore` if it's not already there (do not ignore the whole `<tool-dir>/skills/` tree).
+**Note:** Pass the project root as `--project-dir` so mockups persist in `<tool-dir>/brainstorm/` and survive server restarts. Without it, files go to `/tmp` and get cleaned up. ProjectKit's bootstrap git-ignores `<tool-dir>/brainstorm/`; if it is missing from `.gitignore`, remind the user to add it (do not ignore the whole `<tool-dir>/skills/` tree).
 
 **Launching the server by platform:**
 
@@ -275,8 +275,10 @@ If `.events` doesn't exist, the user didn't interact with the browser — use on
 ## Cleaning Up
 
 ```bash
-scripts/stop-server.sh $SCREEN_DIR
+scripts/stop-server.sh "$SCREEN_DIR"
 ```
+
+Always stop the server when the visual part of brainstorming is done. The script asks the server to exit (it watches for a `.stop-request` file), then force-kills the node process after ~3s if needed — this works on Windows too, where the server runs as a native `node.exe` under the Git Bash wrapper. Expect `{"status": "stopped"}`; on `failed`, report the PID in `$SCREEN_DIR/.server.node-pid` to the user.
 
 If the session used `--project-dir`, mockup files persist in `<tool-dir>/brainstorm/` for later reference. Only `/tmp` sessions get deleted on stop.
 

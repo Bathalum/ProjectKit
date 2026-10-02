@@ -51,6 +51,7 @@ What each mode writes:
 | `CLAUDE.md` thin pointer (`@AGENTS.md`) | if missing | — | if missing |
 | `.claude/skills` link → `.cursor/skills` | — | — | symlink / junction, git-ignored |
 | `.gitattributes` (`*.sh` LF, `*.ps1` CRLF — missing lines only) | yes | yes | yes |
+| `.gitignore` brainstorm sessions | `.claude/brainstorm/` | `.cursor/brainstorm/` | both |
 
 Idempotent — re-run any time to pull skill updates or repair what is missing. It never overwrites `AGENTS.md`, wiki pages, or `CLAUDE.md`, and never deletes the other tool's files (it prints a note instead). Switching `both` → `claude` turns the link into a real folder and drops the `.gitignore` entry.
 

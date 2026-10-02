@@ -13,18 +13,40 @@
 #   cursor  .cursor/skills/ + .cursor/wiki-root (Cursor reads AGENTS.md natively)
 #   both    .cursor/skills/ (SSOT) + CLAUDE.md + .claude/skills link (git-ignored)   [default]
 #   all     + .gitattributes (*.sh LF, *.ps1 CRLF) so skill scripts run after a Windows checkout
+#           + .gitignore <tool-dir>/brainstorm/ (visual-companion scratch sessions)
 #
 # Idempotent. Kit-owned skills are refreshed; AGENTS.md, the wiki and CLAUDE.md
 # are created only when missing -- never overwritten.
 
+# Own scope: `irm | iex` runs in the caller's session -- keep preferences,
+# functions and variables from leaking into it.
+& {
 $ErrorActionPreference = 'Stop'
 $RepoUrl = 'https://github.com/Bathalum/ProjectKit.git'
 $RawPs = 'https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.ps1'
 $RawSh = 'https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh'
 $IgnoreComment = '# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)'
 $IgnoreEntry = '.claude/skills'
+$BrainstormComment = '# ProjectKit: brainstorm visual-companion sessions (mockups, server logs)'
 $GitAttributesComment = '# ProjectKit: keep skill scripts runnable on Windows checkouts'
 $GitAttributes = @('*.sh text eol=lf', '*.ps1 text eol=crlf')
+$OnWindows = ($PSVersionTable.PSEdition -ne 'Core') -or $IsWindows
+
+# Append the lines missing from a text file (created if absent) under one
+# comment; existing lines are kept. Returns the lines that were added.
+function Add-MissingLines([string]$Path, [string]$Comment, [string[]]$Lines) {
+    $have = @()
+    if (Test-Path -LiteralPath $Path) { $have = @(Get-Content -LiteralPath $Path | ForEach-Object { $_.Trim() }) }
+    $missing = @($Lines | Where-Object { $have -notcontains $_ })
+    if ($missing.Count -eq 0) { return @() }
+    $prefix = ''
+    if (Test-Path -LiteralPath $Path) {
+        $raw = [IO.File]::ReadAllText($Path)
+        if ($raw.Length -gt 0 -and -not $raw.EndsWith("`n")) { $prefix = "`n" }
+    }
+    [IO.File]::AppendAllText($Path, "$prefix$Comment`n" + ($missing -join "`n") + "`n")
+    return $missing
+}
 
 function Copy-Tree([string]$From, [string]$To, [bool]$Overwrite) {
     $From = (Resolve-Path -LiteralPath $From).Path
@@ -63,7 +85,7 @@ function Get-OneLiners([string]$T) {
 
 # Remove a directory link (symlink or junction) without touching its target.
 function Remove-DirLink([string]$Path) {
-    cmd /c "rmdir `"$Path`""
+    if ($OnWindows) { cmd /c "rmdir `"$Path`"" } else { & /bin/rm -- $Path }
     if ($LASTEXITCODE -ne 0) { throw "Could not remove link $Path" }
 }
 
@@ -150,8 +172,7 @@ try {
             Write-Warning '.claude/skills is a real folder -- left alone. Move its skills into .cursor/skills and re-run.'
         } else {
             if (-not (Test-Path -LiteralPath $linkDir)) { New-Item -ItemType Directory -Path $linkDir | Out-Null }
-            $onWindows = ($PSVersionTable.PSEdition -ne 'Core') -or $IsWindows
-            if ($onWindows) {
+            if ($OnWindows) {
                 # Relative symlink needs Developer Mode/admin; junction works for everyone.
                 cmd /c "mklink /D `"$link`" `"..\.cursor\skills`" >nul 2>nul"
                 if ($LASTEXITCODE -ne 0) { cmd /c "mklink /J `"$link`" `"$Target\.cursor\skills`" >nul" }
@@ -163,15 +184,7 @@ try {
         }
 
         # git on Windows checks symlinks out as text files -- keep the link per-machine.
-        $lines = @()
-        if (Test-Path -LiteralPath $gi) { $lines = @(Get-Content -LiteralPath $gi) }
-        if ($lines -notcontains $IgnoreEntry) {
-            $prefix = ''
-            if (Test-Path -LiteralPath $gi) {
-                $raw = [IO.File]::ReadAllText($gi)
-                if ($raw.Length -gt 0 -and -not $raw.EndsWith("`n")) { $prefix = "`n" }
-            }
-            [IO.File]::AppendAllText($gi, "$prefix$IgnoreComment`n$IgnoreEntry`n")
+        if ((Add-MissingLines $gi $IgnoreComment @($IgnoreEntry)).Count -gt 0) {
             Write-Host '  gitignore   added .claude/skills'
         }
     } elseif ($Tool -eq 'claude' -and (Test-Path -LiteralPath $gi)) {
@@ -184,22 +197,16 @@ try {
         }
     }
 
-    # 5. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
-    $ga = Join-Path $Target '.gitattributes'
-    $gaLines = @()
-    if (Test-Path -LiteralPath $ga) { $gaLines = @(Get-Content -LiteralPath $ga) }
-    $missing = @($GitAttributes | Where-Object { $gaLines -notcontains $_ })
-    if ($missing.Count -gt 0) {
-        $prefix = ''
-        if (Test-Path -LiteralPath $ga) {
-            $raw = [IO.File]::ReadAllText($ga)
-            if ($raw.Length -gt 0 -and -not $raw.EndsWith("`n")) { $prefix = "`n" }
-        }
-        [IO.File]::AppendAllText($ga, "$prefix$GitAttributesComment`n" + ($missing -join "`n") + "`n")
-        Write-Host "  gitattrib   added $($missing -join ', ')"
-    }
+    # 5. Brainstorm sessions (mockups, server logs) are scratch -- keep them out of git.
+    $bsDirs = switch ($Tool) { 'claude' { @('.claude/brainstorm/') } 'cursor' { @('.cursor/brainstorm/') } default { @('.cursor/brainstorm/', '.claude/brainstorm/') } }
+    $added = @(Add-MissingLines $gi $BrainstormComment $bsDirs)
+    if ($added.Count -gt 0) { Write-Host "  gitignore   added $($added -join ', ')" }
 
-    # 6. Leftovers from the other tool are reported, never deleted.
+    # 6. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
+    $added = @(Add-MissingLines (Join-Path $Target '.gitattributes') $GitAttributesComment $GitAttributes)
+    if ($added.Count -gt 0) { Write-Host "  gitattrib   added $($added -join ', ')" }
+
+    # 7. Leftovers from the other tool are reported, never deleted.
     if ($Tool -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $Target '.cursor'))) {
         Write-Host '  note        .cursor/ exists -- delete it if this project does not use Cursor'
     }
@@ -211,3 +218,4 @@ try {
 } finally {
     if ($Tmp) { Remove-Item -Recurse -Force -LiteralPath $Tmp -ErrorAction SilentlyContinue }
 }
+} @args

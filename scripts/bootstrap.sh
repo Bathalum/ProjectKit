@@ -14,6 +14,7 @@
 #   cursor  .cursor/skills/ + .cursor/wiki-root (Cursor reads AGENTS.md natively)
 #   both    .cursor/skills/ (SSOT) + CLAUDE.md + .claude/skills link (git-ignored)   [default]
 #   all     + .gitattributes (*.sh LF, *.ps1 CRLF) so skill scripts run after a Windows checkout
+#           + .gitignore <tool-dir>/brainstorm/ (visual-companion scratch sessions)
 #
 # Idempotent. Kit-owned skills are refreshed; AGENTS.md, the wiki and CLAUDE.md
 # are created only when missing -- never overwritten.
@@ -24,6 +25,7 @@ RAW_PS="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/boots
 RAW_SH="https://raw.githubusercontent.com/Bathalum/ProjectKit/HEAD/scripts/bootstrap.sh"
 IGNORE_COMMENT="# ProjectKit: local link to .cursor/skills (recreate with scripts/bootstrap)"
 IGNORE_ENTRY=".claude/skills"
+BRAINSTORM_COMMENT="# ProjectKit: brainstorm visual-companion sessions (mockups, server logs)"
 GITATTR_COMMENT="# ProjectKit: keep skill scripts runnable on Windows checkouts"
 GITATTR_LINES=("*.sh text eol=lf" "*.ps1 text eol=crlf")
 
@@ -39,6 +41,21 @@ one_liners() {
   else
     printf -- '- PowerShell: `& ([scriptblock]::Create((irm %s))) %s`\n- bash: `curl -fsSL %s | bash -s -- %s`\n' "$RAW_PS" "$1" "$RAW_SH" "$1"
   fi
+}
+
+# Append the lines missing from a text file (created if absent) under one
+# comment; existing lines are kept. Prints the added lines, comma-separated.
+add_missing_lines() {
+  local file="$1" comment="$2" l
+  shift 2
+  local missing=()
+  for l in "$@"; do
+    { [ -f "$file" ] && tr -d '\r' < "$file" | grep -qxF -- "$l"; } || missing+=("$l")
+  done
+  [ "${#missing[@]}" -gt 0 ] || return 0
+  if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then echo >> "$file"; fi
+  { echo "$comment"; printf '%s\n' "${missing[@]}"; } >> "$file"
+  (IFS=,; echo "${missing[*]}")
 }
 
 # Remove a directory link (symlink or junction) without touching its target.
@@ -135,30 +152,29 @@ if [ "$TOOL" = both ]; then
   fi
 
   # git on Windows checks symlinks out as text files -- keep the link per-machine.
-  if ! { [ -f .gitignore ] && grep -qxF "$IGNORE_ENTRY" .gitignore; }; then
-    if [ -s .gitignore ] && [ -n "$(tail -c1 .gitignore)" ]; then echo >> .gitignore; fi
-    printf '%s\n%s\n' "$IGNORE_COMMENT" "$IGNORE_ENTRY" >> .gitignore
-    echo "  gitignore   added .claude/skills"
-  fi
-elif [ "$TOOL" = claude ] && [ -f .gitignore ] && grep -qxF "$IGNORE_ENTRY" .gitignore; then
+  added="$(add_missing_lines .gitignore "$IGNORE_COMMENT" "$IGNORE_ENTRY")"
+  if [ -n "$added" ]; then echo "  gitignore   added $added"; fi
+elif [ "$TOOL" = claude ] && [ -f .gitignore ] && tr -d '\r' < .gitignore | grep -qxF "$IGNORE_ENTRY"; then
   # Real skills folder now -- it must not stay git-ignored.
-  grep -vxF -e "$IGNORE_ENTRY" -e "$IGNORE_COMMENT" .gitignore > .gitignore.tmp || true
+  tr -d '\r' < .gitignore | grep -vxF -e "$IGNORE_ENTRY" -e "$IGNORE_COMMENT" > .gitignore.tmp || true
   if [ -s .gitignore.tmp ]; then mv .gitignore.tmp .gitignore; else rm -f .gitignore.tmp .gitignore; fi
   echo "  gitignore   removed .claude/skills"
 fi
 
-# 5. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
-missing=()
-for l in "${GITATTR_LINES[@]}"; do
-  { [ -f .gitattributes ] && tr -d '\r' < .gitattributes | grep -qxF -- "$l"; } || missing+=("$l")
-done
-if [ "${#missing[@]}" -gt 0 ]; then
-  if [ -s .gitattributes ] && [ -n "$(tail -c1 .gitattributes)" ]; then echo >> .gitattributes; fi
-  { echo "$GITATTR_COMMENT"; printf '%s\n' "${missing[@]}"; } >> .gitattributes
-  echo "  gitattrib   added $(IFS=,; echo "${missing[*]}")"
-fi
+# 5. Brainstorm sessions (mockups, server logs) are scratch -- keep them out of git.
+case "$TOOL" in
+  claude) BS_DIRS=(".claude/brainstorm/") ;;
+  cursor) BS_DIRS=(".cursor/brainstorm/") ;;
+  *)      BS_DIRS=(".cursor/brainstorm/" ".claude/brainstorm/") ;;
+esac
+added="$(add_missing_lines .gitignore "$BRAINSTORM_COMMENT" "${BS_DIRS[@]}")"
+if [ -n "$added" ]; then echo "  gitignore   added $added"; fi
 
-# 6. Leftovers from the other tool are reported, never deleted.
+# 6. Line endings: skill .sh scripts break in bash if a Windows checkout makes them CRLF.
+added="$(add_missing_lines .gitattributes "$GITATTR_COMMENT" "${GITATTR_LINES[@]}")"
+if [ -n "$added" ]; then echo "  gitattrib   added $added"; fi
+
+# 7. Leftovers from the other tool are reported, never deleted.
 if [ "$TOOL" = claude ] && [ -e .cursor ]; then
   echo "  note        .cursor/ exists -- delete it if this project does not use Cursor"
 fi

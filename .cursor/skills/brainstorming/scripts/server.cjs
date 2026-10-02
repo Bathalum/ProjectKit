@@ -257,8 +257,17 @@ const debounceTimers = new Map();
 
 // ========== Server Startup ==========
 
+// stop-server.sh signals via STOP_FILE (portable — no cross-namespace PID kill
+// needed) and falls back to force-killing the PID in NODE_PID_FILE.
+const STOP_FILE = '.stop-request';
+const NODE_PID_FILE = '.server.node-pid';
+
 function startServer() {
   if (!fs.existsSync(SCREEN_DIR)) fs.mkdirSync(SCREEN_DIR, { recursive: true });
+  const stopFile = path.join(SCREEN_DIR, STOP_FILE);
+  const nodePidFile = path.join(SCREEN_DIR, NODE_PID_FILE);
+  if (fs.existsSync(stopFile)) fs.unlinkSync(stopFile);
+  fs.writeFileSync(nodePidFile, process.pid + '\n');
 
   // Track known files to distinguish new screens from updates.
   // macOS fs.watch reports 'rename' for both new files and overwrites,
@@ -271,6 +280,10 @@ function startServer() {
   server.on('upgrade', handleUpgrade);
 
   const watcher = fs.watch(SCREEN_DIR, (eventType, filename) => {
+    if (filename === STOP_FILE) {
+      if (fs.existsSync(stopFile)) shutdown('stop requested');
+      return;
+    }
     if (!filename || !filename.endsWith('.html')) return;
 
     if (debounceTimers.has(filename)) clearTimeout(debounceTimers.get(filename));
@@ -295,17 +308,28 @@ function startServer() {
   });
   watcher.on('error', (err) => console.error('fs.watch error:', err.message));
 
+  let stopping = false;
   function shutdown(reason) {
+    if (stopping) return;
+    stopping = true;
     console.log(JSON.stringify({ type: 'server-stopped', reason }));
-    const infoFile = path.join(SCREEN_DIR, '.server-info');
-    if (fs.existsSync(infoFile)) fs.unlinkSync(infoFile);
+    for (const f of ['.server-info', STOP_FILE, NODE_PID_FILE]) {
+      try { fs.unlinkSync(path.join(SCREEN_DIR, f)); } catch (e) { /* already gone */ }
+    }
     fs.writeFileSync(
       path.join(SCREEN_DIR, '.server-stopped'),
       JSON.stringify({ reason, timestamp: Date.now() }) + '\n'
     );
     watcher.close();
     clearInterval(lifecycleCheck);
+    for (const socket of clients) socket.destroy();
     server.close(() => process.exit(0));
+    // Keep-alive HTTP connections can hold close() open; don't hang on them.
+    setTimeout(() => process.exit(0), 1000).unref();
+  }
+
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+    process.on(sig, () => shutdown('signal ' + sig));
   }
 
   function ownerAlive() {
