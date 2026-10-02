@@ -267,7 +267,6 @@ function startServer() {
   const stopFile = path.join(SCREEN_DIR, STOP_FILE);
   const nodePidFile = path.join(SCREEN_DIR, NODE_PID_FILE);
   if (fs.existsSync(stopFile)) fs.unlinkSync(stopFile);
-  fs.writeFileSync(nodePidFile, process.pid + '\n');
 
   // Track known files to distinguish new screens from updates.
   // macOS fs.watch reports 'rename' for both new files and overwrites,
@@ -309,11 +308,12 @@ function startServer() {
   watcher.on('error', (err) => console.error('fs.watch error:', err.message));
 
   let stopping = false;
-  function shutdown(reason) {
+  function shutdown(reason, code = 0) {
     if (stopping) return;
     stopping = true;
     console.log(JSON.stringify({ type: 'server-stopped', reason }));
-    for (const f of ['.server-info', STOP_FILE, NODE_PID_FILE]) {
+    // No PID files may outlive the process: a stale PID could be reused.
+    for (const f of ['.server-info', STOP_FILE, NODE_PID_FILE, '.server.pid']) {
       try { fs.unlinkSync(path.join(SCREEN_DIR, f)); } catch (e) { /* already gone */ }
     }
     fs.writeFileSync(
@@ -323,9 +323,9 @@ function startServer() {
     watcher.close();
     clearInterval(lifecycleCheck);
     for (const socket of clients) socket.destroy();
-    server.close(() => process.exit(0));
+    server.close(() => process.exit(code));
     // Keep-alive HTTP connections can hold close() open; don't hang on them.
-    setTimeout(() => process.exit(0), 1000).unref();
+    setTimeout(() => process.exit(code), 1000).unref();
   }
 
   for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
@@ -344,7 +344,15 @@ function startServer() {
   }, 60 * 1000);
   lifecycleCheck.unref();
 
+  // e.g. EADDRINUSE: exit cleanly instead of crashing with PID files behind.
+  server.on('error', (err) => {
+    console.error(JSON.stringify({ type: 'server-error', error: err.message }));
+    shutdown('error: ' + err.message, 1);
+  });
+
   server.listen(PORT, HOST, () => {
+    // Only a listening server advertises its PID (stop-server kills by it).
+    fs.writeFileSync(nodePidFile, process.pid + '\n');
     const info = JSON.stringify({
       type: 'server-started', port: Number(PORT), host: HOST,
       url_host: URL_HOST, url: 'http://' + URL_HOST + ':' + PORT,

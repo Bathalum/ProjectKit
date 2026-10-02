@@ -52,6 +52,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Absolute project dir: the script cd's into its own folder before starting node,
+# so a relative path would land the session inside the skills tree.
+if [[ -n "$PROJECT_DIR" ]]; then
+  case "${OSTYPE:-}" in msys*|cygwin*|mingw*) PWD_FLAGS="-W" ;; *) PWD_FLAGS="" ;; esac
+  if ! PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd $PWD_FLAGS)"; then
+    echo "{\"error\": \"--project-dir does not exist\"}"
+    exit 1
+  fi
+fi
+
 if [[ -z "$URL_HOST" ]]; then
   if [[ "$BIND_HOST" == "127.0.0.1" || "$BIND_HOST" == "localhost" ]]; then
     URL_HOST="localhost"

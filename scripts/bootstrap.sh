@@ -102,16 +102,17 @@ fi
 WIKI_ROOT="docs"
 for f in .cursor/wiki-root .claude/wiki-root; do
   [ -f "$f" ] || continue
-  line="$(grep -v '^[[:space:]]*#' "$f" | grep -v '^[[:space:]]*$' | head -n1 | tr -d '\r' | xargs || true)"
+  # First non-comment line, trimmed; Windows-style separators normalised to '/'.
+  line="$(tr -d '\r' < "$f" | grep -v '^[[:space:]]*#' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | head -n1 | tr '\\' '/' || true)"
   if [ -n "$line" ]; then WIKI_ROOT="${line%/}"; break; fi
 done
 WIKI_PARENT="$(dirname "$WIKI_ROOT")"
 if [ "$WIKI_PARENT" = "." ]; then AGENTS_REL="AGENTS.md"; else AGENTS_REL="$WIKI_PARENT/AGENTS.md"; fi
+mkdir -p "$WIKI_ROOT"   # monorepo: creates the package dir AGENTS.md lives in
 if [ ! -e "$AGENTS_REL" ]; then
   cp "$SRC/Constitution/AGENTS.md" "$AGENTS_REL"
   echo "  law         created ($AGENTS_REL)"
 fi
-mkdir -p "$WIKI_ROOT"
 cp -Rn "$SRC/Constitution/docs/." "$WIKI_ROOT/" 2>/dev/null || true
 echo "  wiki        missing stubs added ($WIKI_ROOT/)"
 

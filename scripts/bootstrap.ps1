@@ -66,7 +66,7 @@ function Get-WikiRoot([string]$Root) {
         if (Test-Path -LiteralPath $f) {
             foreach ($line in Get-Content -LiteralPath $f) {
                 $t = $line.Trim()
-                if ($t -and -not $t.StartsWith('#')) { return $t.TrimEnd('/', '\') }
+                if ($t -and -not $t.StartsWith('#')) { return ($t -replace '\\', '/').TrimEnd('/') }
             }
         }
     }
@@ -137,10 +137,12 @@ try {
     }
 
     # 2. Law + wiki: project owns them -- add only what is missing.
-    $wikiRoot = Get-WikiRoot $Target
-    $wikiParent = Split-Path -Parent $wikiRoot
-    $agentsRel = if ($wikiParent) { "$wikiParent/AGENTS.md" } else { 'AGENTS.md' }
+    $wikiRoot = Get-WikiRoot $Target   # '/'-separated: also written into CLAUDE.md
+    $cut = $wikiRoot.LastIndexOf('/')
+    $agentsRel = if ($cut -gt 0) { $wikiRoot.Substring(0, $cut) + '/AGENTS.md' } else { 'AGENTS.md' }
     $agentsPath = Join-Path $Target $agentsRel
+    # Monorepo: create the package dir AGENTS.md lives in.
+    New-Item -ItemType Directory -Force -Path (Join-Path $Target $wikiRoot) | Out-Null
     if (-not (Test-Path -LiteralPath $agentsPath)) {
         Copy-Item -LiteralPath (Join-Path $Src 'Constitution\AGENTS.md') -Destination $agentsPath
         Write-Host "  law         created ($agentsRel)"
